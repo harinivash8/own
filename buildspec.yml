@@ -1,0 +1,35 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - echo "Installing dependencies..."
+      - yum update -y
+      - amazon-linux-extras install -y java-openjdk17
+      - export JAVA_HOME=/usr/lib/jvm/java-17-openjdk.x86_64
+      - echo "Installing Maven..."
+      - wget https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.5/apache-maven-3.9.5-bin.tar.gz
+      - tar -xvzf apache-maven-3.9.5-bin.tar.gz
+      - sudo mv apache-maven-3.9.5 /opt/maven
+      - sudo ln -s /opt/maven/bin/mvn /usr/local/bin/mvn
+      - mvn -version
+  build:
+    commands:
+      - echo "Building the Java application with Maven..."
+      - mvn clean package
+  post_build:
+    commands:
+      - echo "Docker build started on `date`"
+      - echo "Building the Docker image..."
+      - docker build -t my-java-app .
+      - echo "Tagging the Docker image..."
+      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin <your_account_id>.dkr.ecr.ap-south-1.amazonaws.com
+      - IMAGE_TAG=$(echo $CODEBUILD_BUILD_ID | cut -c 1-8)
+      - docker tag my-java-app:latest <your_account_id>.dkr.ecr.ap-south-1.amazonaws.com/my-java-app:$IMAGE_TAG
+      - echo "Pushing the Docker image to ECR..."
+      - docker push <your_account_id>.dkr.ecr.ap-south-1.amazonaws.com/my-java-app:$IMAGE_TAG
+      - echo "Docker build finished on `date`"
+artifacts:
+  files:
+    - target/*.jar
+  name: target-jar-file
+  discard-paths: yes
